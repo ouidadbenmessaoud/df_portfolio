@@ -1,0 +1,147 @@
+---
+title: "Learning to Wrangle Data: How To Build A Farming Plan For Stardew Valley"
+author: "Ouidad Ben Messaoud"
+date: "March 30, 2026"
+output: 
+  html_document:
+    theme: journal
+    toc: true
+    toc_float: true
+    code_download: true
+---
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+#Theme for R found : https://rpubs.com/ranydc/rmarkdown_themes
+#3/28/26
+```
+
+# Introduction
+Have you ever downloaded a game thinking it would be a cute low-commitment way to spend your time but are instead hit with a complex game that requires planning, and even spreadsheets tracking actions? I’ve had this with Stardew Valley, a farming game with surprisingly many more components than just maintaining a farm. 
+
+But with the help of R studio, some packages like tidyverse, and datasets of crops from Stardew Valley, I can organize what kind of crops I’d want to sell and when I should do that!
+
+# What I’m Using
+I will be using the following packages in R:
+
+```{r, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(mosaic)
+library(ggplot2)
+library(knitr)
+library(stringr)
+library(kableExtra)
+```
+
+And I will be using data sets from Kaggle, an online library for datasets posted by users. The dataset I will be using is “Stardew Valley Crops (Updated)” by Júlio Cézar P. Camargo. 
+
+While you can download the csv files straight to your computer and upload the data sets from your files, R-Markdown will need a special code to recognize your code when knitting your document. 
+
+When you import these data tables to your R, you will see they are tables for the specific season and a “Special Crops” table. I will not be using the “Special Crops” dataset so we can focus on simple crops. 
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+#downloaded from Kaggle on 3/27/26, Stardew Valley Crops (Updated); https://www.kaggle.com/datasets/juletopi/stardew-valley-crops-updated
+
+#Uploading to R
+fall_crops = read.csv("fall_crops_info.csv")
+spring_crops = read.csv("spring_crops_info.csv")
+summer_crops = read.csv("summer_crops_info.csv")
+winter_crops = read.csv("winter_crops_info.csv")
+```
+
+# Setting Up Analysis
+
+Now I have 4 data tables based on season, but I want to join these tables into one master table and see what my high yield crops year round, as well as see what season is giving me those high yield crops. 
+
+To join tables, we will use dplyr table joining function bind_rows as follows:
+
+```{r, warning = FALSE, message = FALSE}
+year_crops = bind_rows(fall_crops, spring_crops, summer_crops, winter_crops)
+
+#binding rows, 3/29/26: https://dplyr.tidyverse.org/reference/bind_rows.html
+```
+
+*This code will join the tables in a way that recognizes the variables are the same throughout the tables. If we had used join_full, a function in dyplr that combines tables, we would have chunks of missing values and duplicate column names for each table.*
+
+Now that we have our table, we can use the ggplot2 package to get a quick graphic of our data. I first want to see how the sell price for the crops is dependent on the number of days required to grow. 
+
+You can do that with the following code, using our new “year_crops” table. I want to distinguish this by season to see what season may yield the highest selling crops. 
+
+```{r, warning = FALSE, message = FALSE}
+#Initial look, visualize days to grow on sell price
+ggplot(data= year_crops, aes(x=days_to_grow, y=sell_price, color = season))+
+  geom_point()
+```
+
+This is a great start! But I see an outlier which makes it a little difficult to see the spread of the other crops. 
+
+*This crop “Sweet Gem Berry” is a rare seed that grows in Fall. As a beginner farmer, considering this fruit will not be helpful in making a starter farming plan. Researching other outlier crops is recommended*
+
+To omit this, we first want to see what the highest value is, then we can filter out the outlier. To do this we input the following code:
+
+```{r, warning = FALSE, message = FALSE}
+#Highest selling crop
+slice_max(year_crops, sell_price)
+```
+
+Now that we know what our highest selling fruit is, we can now make a new table omitting the rare fruit with the following code
+
+```{r, warning = FALSE, message = FALSE}
+#New table without rare crop + removing unwanted column
+year_crops_adj = filter(year_crops, sell_price < 3000) %>% 
+  select(-description)
+```
+
+In the same line, I am naming my new table “year_crops_adj”, making it equal to a filtered year_crop table to have the sell price be less than our outlier. I am also using the pipeline operator to omit another piece of data, the description, to make the table easier to read when pulling up summaries or tables. 
+
+## Better Look at High Yield Crops Based on Growth Time
+
+Now that we have our new data table, we can make a graph that will better represent our sell price based on days of growth! We will use the same base format of the graph while adding some labeling and sizing variable with regrowth frequency.
+
+```{r, warning = FALSE, message = FALSE}
+#Detailed graph on selling price based on growth length
+ggplot(data= year_crops_adj, aes(x=days_to_grow, y=sell_price, color = season))+
+  geom_point(aes(size= regrowth))+
+  labs(x= "Days to Grow", y= "Sell Price", title = "Selling Price Based On Days Required To Grow", subtitle = "How does growth period affect selling yield of crops", size = "Number of Regrowths")
+```
+
+From this graph we can see that the shorter time it takes to grow, the less money that crop will yield you. Some of the longer growing crops yield more, especially for fall and summer crops. 
+
+## Finding Good Starting Crops
+
+Now that we know crops with longer growth periods generally have higher selling prices, we can look into what crops would be good to start with by filtering the cheapest seeds to buy. 
+
+To do this we can make another table with the top 1o selling crops while arranging them by cost for seeds. 
+
+To do this, we will follow the code:
+
+```{r, warning = FALSE, message = FALSE}
+#New top 10 code
+top_ten = arrange(year_crops_adj, sell_price) %>% 
+  slice(year_crops_adj$sell_price, 1:10) %>% 
+  distinct()
+# Using distinct function with this tutorial, 3/30/26: https://www.datanovia.com/en/lessons/identify-and-remove-duplicate-data-in-r/
+
+#Arranging our table to list crops cheapest to most expensive seeds
+top_ten_arr = top_ten %>% 
+  select(crop_name, seed_price, sell_price, season) %>%
+  distinct() %>% 
+  arrange(seed_price)
+
+kable(top_ten_arr)
+```
+
+The select function allows us to make a table with columns relevant to us. The distinct function removes any duplicated rows we may get from making this table. And our arrange function arranges the table based on the seed price. 
+
+Now we can use this table to see our cheapest crops and pick out the ones with the highest yield. Since you start out in the spring time, you may also want to make a similar graph with just spring crops. We will follow a similar format to the previous table but not add the “distinct” function since this is only for one season and duplicates would arise from crops growing in multiple seasons. 
+
+```{r, warning = FALSE, message = FALSE}
+#Spring crops table
+spring = spring_crops %>% 
+  select(crop_name, seed_price, sell_price, season) %>%
+  arrange(seed_price)
+
+kable(spring)
+```
+# Conclusion
+
+And now, you have a good basis for what crops to start growing as a new farmer. During the spring time, you may want to invest your money into cauliflower, rhubarb, and kale. You can make more tables with similar functions for the other seasons as well, specifically summer and fall. 
